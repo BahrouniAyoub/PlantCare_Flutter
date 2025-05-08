@@ -24,11 +24,7 @@ class _ScanPageState extends State<ScanPage> {
       'VTSXEXvv5uzUkTJULkgDFNmzDNJ5q2rlWJVzyXbMDa2FwaT0w7';
 
   String get _databaseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:5000/plants'; // Web browser calls 10.0.2.2
-    } else {
-      return 'http://10.0.2.2:5000/plants'; // Android emulator 10.0.2.2
-    }
+    return 'http://10.0.2.2:5000/plants'; // Replace X.X with your PC IP address
   }
 
   Future<void> _openCamera() async {
@@ -38,9 +34,9 @@ class _ScanPageState extends State<ScanPage> {
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.rear,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+        maxWidth: 600, // reduce width
+        maxHeight: 600, // reduce height
+        imageQuality: 60, // reduce quality
       );
 
       if (photo != null) {
@@ -54,6 +50,9 @@ class _ScanPageState extends State<ScanPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Plant scanned successfully')),
         );
+
+        // ✅ Call the identification method here
+        await _identifyPlant();
       } else {
         setState(() => _isLoading = false);
       }

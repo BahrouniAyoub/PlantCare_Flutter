@@ -8,7 +8,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_onboarding/ui/screens/mqtt_service.dart';
 import 'dart:convert';
 import 'dart:typed_data';
-
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 class DetailPage extends StatefulWidget {
   final Plant plant;
@@ -22,13 +23,109 @@ class DetailPage extends StatefulWidget {
 class _DetailPageState extends State<DetailPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  // late MqttService mqttService;
+  late MqttService mqttService;
 
   double? latestTemperature;
   double? latestHumidity;
 
+  double? recommendedWateringDays;
+  double? recommendedWateringAmount;
+
+  Future<void> _loadLastHourHistory() async {
+    try {
+      final now = DateTime.now();
+      final oneHourAgo = now.subtract(const Duration(hours: 1));
+
+      final response = await http.get(
+        Uri.parse(
+          'http://10.0.2.2:5000/api/history/${widget.plant.id}?since=${oneHourAgo.toUtc().toIso8601String()}',
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+
+        final tempData = <Map<String, dynamic>>[];
+        final humData = <Map<String, dynamic>>[];
+
+        for (var item in data) {
+          final ts = DateTime.parse(item['timestamp']);
+          final label =
+              "${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}";
+
+          if (item['sensorType'] == 'temp') {
+            tempData.add({'time': label, 'value': item['value']});
+          } else if (item['sensorType'] == 'hum') {
+            humData.add({'time': label, 'value': item['value']});
+          }
+        }
+
+        setState(() {
+          temperatureData = tempData.takeLast(6).toList();
+          soilHumidityData = humData.takeLast(6).toList();
+          _lastUpdated = now.toLocal().toString().substring(0, 16);
+        });
+      } else {
+        print('History load error: ${response.body}');
+      }
+    } catch (e) {
+      print('Exception in _loadLastHourHistory: $e');
+    }
+  }
+
   // 🕓 To store last updated time
   String _lastUpdated = DateTime.now().toLocal().toString().substring(0, 16);
+
+  Future<void> _loadSensorHistory() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/api/history/${widget.plant.id}'),
+      );
+
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+
+        final tempData = <Map<String, dynamic>>[];
+        final humData = <Map<String, dynamic>>[];
+
+        for (var item in data) {
+          final DateTime ts = DateTime.parse(item['timestamp']);
+          final label =
+              "${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}";
+
+          if (item['sensorType'] == 'temp') {
+            tempData.add({'time': label, 'value': item['value']});
+          } else if (item['sensorType'] == 'hum') {
+            humData.add({'time': label, 'value': item['value']});
+          }
+        }
+
+        setState(() {
+          temperatureData = tempData.takeLast(6).toList();
+          soilHumidityData = humData.takeLast(6).toList();
+
+          // if (temperatureData.isNotEmpty && soilHumidityData.isNotEmpty) {
+          //   final tMax = temperatureData.last['value'] as double;
+          //   final tMin = (soilHumidityData.last['value'] as double) / 2;
+          //   final now = DateTime.now();
+
+          //   recommendedWateringInterval = estimateWateringFrequency(
+          //     tMax: tMax,
+          //     tMin: tMin,
+          //     latitude: 36.8,
+          //     dayOfYear: int.parse(DateFormat("D").format(now)),
+          //     kc: 0.9,
+          //     rootZoneWaterHoldingCapacityMm: 100,
+          //   );
+          // }
+        });
+      } else {
+        print('Error loading history: ${response.body}');
+      }
+    } catch (e) {
+      print('Exception loading history: $e');
+    }
+  }
 
 // 🔵 Refresh Sensor Data Manually
   void _refreshSensorData() {
@@ -63,9 +160,12 @@ class _DetailPageState extends State<DetailPage>
 
     if (!kIsWeb) {
       // ✅ Only connect MQTT on Android/iOS
-      // mqttService = MqttService(onMessageReceived: _handleMqttMessage);
-      // mqttService.connect();
+
+      mqttService = MqttService(
+          plantId: widget.plant.id, onMessageReceived: _handleMqttMessage);
+      mqttService.connect();
     }
+    _loadSensorHistory();
   }
 
   void _handleMqttMessage(String topic, String message) {
@@ -73,18 +173,32 @@ class _DetailPageState extends State<DetailPage>
       final now = DateTime.now();
       final timeLabel =
           "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+      print('MQTT MESSAGE: $topic => $message');
 
-      if (topic == 'sensor/temperature') {
+      if (topic == 'sensor/${widget.plant.id}/temp') {
         final tempValue = double.tryParse(message) ?? 0;
         latestTemperature = tempValue;
         temperatureData.add({'time': timeLabel, 'value': tempValue});
         if (temperatureData.length > 6) temperatureData.removeAt(0);
-      } else if (topic == 'sensor/humidity') {
+      } else if (topic == 'sensor/${widget.plant.id}/hum') {
         final humValue = double.tryParse(message) ?? 0;
         latestHumidity = humValue;
         soilHumidityData.add({'time': timeLabel, 'value': humValue});
         if (soilHumidityData.length > 6) soilHumidityData.removeAt(0);
       }
+      print("Temp: $latestTemperature, Hum: $latestHumidity");
+
+      final result = estimateWateringFrequencyAndAmount(
+        tMax: latestTemperature!,
+        tMin: latestHumidity! / 2,
+        latitude: 36.8,
+        dayOfYear: int.parse(DateFormat("D").format(DateTime.now())),
+        kc: 0.9,
+        rootZoneWaterHoldingCapacityMm: 100,
+      );
+
+      recommendedWateringDays = result['days'];
+      recommendedWateringAmount = result['amountMm'];
 
       _lastUpdated = now.toLocal().toString().substring(0, 16);
     });
@@ -94,7 +208,7 @@ class _DetailPageState extends State<DetailPage>
   void dispose() {
     _tabController.dispose();
     if (!kIsWeb) {
-      // mqttService.disconnect();
+      mqttService.disconnect();
     }
     super.dispose();
   }
@@ -283,24 +397,30 @@ class _DetailPageState extends State<DetailPage>
 
   // 🪴 Live Sensor Graph
   Widget _buildSensorDataTab() {
-  return Padding(
-    padding: const EdgeInsets.all(20.0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '🌿 Live Sensor Readings',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.green,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '🌿 Live Sensor Readings',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
+            ),
           ),
-        ),
-        const SizedBox(height: 20),
+          const SizedBox(height: 20),
+          TextButton.icon(
+            onPressed: _loadLastHourHistory,
+            icon: const Icon(Icons.history),
+            label: const Text('Show Last Hour History'),
+          ),
+          const SizedBox(height: 20),
 
-        // Temperature Info
-        Row(
-          children: [
+          // Temperature Info + Chart + History
+          const SizedBox(height: 20),
+          Row(children: [
             const Icon(Icons.thermostat, color: Colors.red),
             const SizedBox(width: 10),
             Text(
@@ -309,19 +429,28 @@ class _DetailPageState extends State<DetailPage>
                   : 'Temperature: waiting for data...',
               style: const TextStyle(fontSize: 18),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
+          ]),
+          const SizedBox(height: 10),
+          temperatureData.isNotEmpty
+              ? _buildLineChart(temperatureData, Colors.red)
+              : const Text('No live temperature data yet.'),
+          const SizedBox(height: 10),
+          temperatureData.isNotEmpty
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('📈 Temperature History (Last Hour):'),
+                    ...temperatureData.map((entry) => Text(
+                        "🕒 ${entry['time']} → 🌡️ ${entry['value'].toStringAsFixed(2)} °C")),
+                  ],
+                )
+              : const Text('No temperature history yet.'),
 
-        // Temperature Chart
-        temperatureData.isNotEmpty
-            ? _buildLineChart(temperatureData, Colors.red)
-            : const Text('No temperature data yet.'),
-        const SizedBox(height: 30),
+          const SizedBox(height: 10),
 
-        // Humidity Info
-        Row(
-          children: [
+          // Humidity Info + Chart + History
+          const SizedBox(height: 30),
+          Row(children: [
             const Icon(Icons.water_drop, color: Colors.blue),
             const SizedBox(width: 10),
             Text(
@@ -330,28 +459,47 @@ class _DetailPageState extends State<DetailPage>
                   : 'Humidity: waiting for data...',
               style: const TextStyle(fontSize: 18),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
+          ]),
+          const SizedBox(height: 10),
+          soilHumidityData.isNotEmpty
+              ? _buildLineChart(soilHumidityData, Colors.blue)
+              : const Text('No live humidity data yet.'),
+          const SizedBox(height: 10),
+          soilHumidityData.isNotEmpty
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('📉 Humidity History (Last Hour):'),
+                    ...soilHumidityData.map((entry) => Text(
+                        "🕒 ${entry['time']} → 💧 ${entry['value'].toStringAsFixed(2)} %")),
+                  ],
+                )
+              : const Text('No humidity history yet.'),
 
-        // Humidity Chart
-        soilHumidityData.isNotEmpty
-            ? _buildLineChart(soilHumidityData, Colors.blue)
-            : const Text('No humidity data yet.'),
-        const SizedBox(height: 20),
-
-        // Timestamp
-        Center(
-          child: Text(
-            'Last Updated: $_lastUpdated',
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          // Timestamp
+          Center(
+            child: Text(
+              'Last Updated: $_lastUpdated',
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
 
+          if (recommendedWateringDays != null &&
+              recommendedWateringAmount != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                '💧 Recommended Watering: Every ${recommendedWateringDays!.toStringAsFixed(1)} days with ${recommendedWateringAmount!.toStringAsFixed(0)} mm of water',
+                style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
 // 🔵 Generate Line Chart Data (Helper Function)
   LineChartData _buildLineChartData(
@@ -560,4 +708,38 @@ class CareTipFeature extends StatelessWidget {
       ],
     );
   }
+}
+
+// 🧩 Extension to get the last N elements from a list
+extension ListTakeLast<T> on List<T> {
+  Iterable<T> takeLast(int n) => skip(length > n ? length - n : 0);
+}
+
+Map<String, double> estimateWateringFrequencyAndAmount({
+  required double tMin,
+  required double tMax,
+  required double latitude,
+  required int dayOfYear,
+  required double kc,
+  required double rootZoneWaterHoldingCapacityMm,
+}) {
+  final tMean = (tMax + tMin) / 2;
+  final phi = latitude * pi / 180;
+  final dr = 1 + 0.033 * cos(2 * pi * dayOfYear / 365);
+  final delta = 0.409 * sin(2 * pi * dayOfYear / 365 - 1.39);
+  final ws = acos(-tan(phi) * tan(delta));
+
+  final ra = (24 * 60 / pi) *
+      0.0820 *
+      dr *
+      (ws * sin(phi) * sin(delta) + cos(phi) * cos(delta) * sin(ws));
+
+  final et0 = 0.0023 * (tMean + 17.8) * sqrt(tMax - tMin) * ra;
+  final etc = et0 * kc;
+  final daysBetweenWatering = rootZoneWaterHoldingCapacityMm / etc;
+
+  return {
+    'days': daysBetweenWatering,
+    'amountMm': rootZoneWaterHoldingCapacityMm,
+  };
 }

@@ -6,6 +6,8 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const authRoutes = require('./routes/authRoutes.js');
 const plantRoutes = require('./routes/plantRoutes.js');
+const sensorRoutes = require('./routes/sensorRoutes.js');
+
 
 connectDB();
 app.use(cors());
@@ -16,6 +18,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/plants', plantRoutes);
 app.use('/api/sensors', require('./routes/sensors'));
+app.use('/api', sensorRoutes);
+
 
 
 

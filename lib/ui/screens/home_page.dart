@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_onboarding/ui/scan_page.dart';
 import 'package:flutter_onboarding/ui/screens/detail_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_onboarding/models/plants.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class HomePage extends StatefulWidget {
   final String userId;
@@ -21,12 +19,7 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
 
   String get _backendUrl {
-    if (kIsWeb) {
-      // 🧠 Important: For Web, 10.0.2.2 is NOT 10.0.2.2 — it must be your computer IP or a deployed server
-      return 'http://127.0.0.1:5000'; // CHANGE if needed when you deploy
-    } else {
-      return 'http://10.0.2.2:5000'; // Android emulator uses 10.0.2.2 to reach 10.0.2.2
-    }
+    return 'http://10.0.2.2:5000'; // Replace with your backend IP
   }
 
   @override
@@ -36,13 +29,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> refreshPlants() async {
+    setState(() => _isLoading = true);
     await fetchPlants();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    fetchPlants();
   }
 
   Future<void> fetchPlants() async {
@@ -57,13 +45,8 @@ class _HomePageState extends State<HomePage> {
           plantList = data.map((plantData) {
             return Plant.fromJson(plantData);
           }).toList();
-
           _isLoading = false;
         });
-
-        if (data.isEmpty) {
-          print("No plants found.");
-        }
       } else {
         throw Exception('Failed to load plants');
       }
@@ -90,9 +73,17 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    Size size = MediaQuery.of(context).size;
-
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Plants'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: refreshPlants,
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.push(
@@ -103,7 +94,7 @@ class _HomePageState extends State<HomePage> {
           );
 
           if (result == true) {
-            await fetchPlants();
+            await refreshPlants();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -116,80 +107,56 @@ class _HomePageState extends State<HomePage> {
         },
         child: const Icon(Icons.camera_alt),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.only(left: 16, bottom: 20, top: 20),
-              child: const Text(
-                'New Plants',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18.0,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              height: size.height * 1,
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : plantList.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No Plant Found',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: plantList.length,
-                          scrollDirection: Axis.vertical,
-                          itemBuilder: (context, index) {
-                            final plant = plantList[index];
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        DetailPage(plant: plant),
-                                  ),
-                                );
-                              },
-                              child: Dismissible(
-                                key: Key(plant.id),
-                                onDismissed: (direction) {
-                                  deletePlant(plant.id);
-                                },
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.all(8),
-                                  leading: Image.memory(
-                                    base64Decode(plant.image.split(',').last),
-                                    height: 80,
-                                    width: 80,
-                                    fit: BoxFit.cover,
-                                  ),
-                                  title: Text(plant.name),
-                                  subtitle: Text(plant.status),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete),
-                                    onPressed: () {
-                                      deletePlant(plant.id);
-                                    },
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : plantList.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No Plant Found',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: plantList.length,
+                  itemBuilder: (context, index) {
+                    final plant = plantList[index];
+                    return Dismissible(
+                      key: Key(plant.id),
+                      direction: DismissDirection.endToStart,
+                      onDismissed: (_) => deletePlant(plant.id),
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(8),
+                        leading: Image.memory(
+                          base64Decode(plant.image.split(',').last),
+                          height: 80,
+                          width: 80,
+                          fit: BoxFit.cover,
                         ),
-            ),
-          ],
-        ),
-      ),
+                        title: Text(plant.name),
+                        subtitle: Text(plant.status),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () => deletePlant(plant.id),
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DetailPage(plant: plant),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }
