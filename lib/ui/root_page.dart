@@ -20,7 +20,6 @@ class RootPage extends StatefulWidget {
 
 class _RootPageState extends State<RootPage> {
   List<Plant> favorites = [];
-  List<Plant> myCart = [];
   int _bottomNavIndex = 0;
 
   // Example: A userId that would be passed to the HomePage
@@ -30,7 +29,6 @@ class _RootPageState extends State<RootPage> {
     return [
       HomePage(userId: widget.userId), // Pass userId to the HomePage
       // FavoritePage(favoritedPlants: favorites),
-      // CartPage(addedToCartPlants: myCart),
       const ProfilePage(),
     ];
   }
@@ -38,16 +36,14 @@ class _RootPageState extends State<RootPage> {
   // List of the pages icons
   List<IconData> iconList = [
     Icons.home,
-    Icons.favorite,
-    Icons.shopping_cart,
+    // Icons.favorite,
     Icons.person,
   ];
 
   // List of the pages titles
   List<String> titleList = [
     'Home',
-    'Favorite',
-    'Cart',
+    // 'Favorite',
     'Profile',
   ];
 

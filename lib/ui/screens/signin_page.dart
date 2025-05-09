@@ -7,6 +7,8 @@ import 'package:page_transition/page_transition.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_onboarding/ui/root_page.dart';
+import 'package:flutter_onboarding/ui/screens/signup_page.dart';
+
 
 class SignIn extends StatefulWidget {
   const SignIn({Key? key}) : super(key: key);
@@ -246,13 +248,13 @@ class _SignInState extends State<SignIn> {
               ),
               // Register Link
               GestureDetector(
-                // onTap: () {
-                //   Navigator.pushReplacement(
-                //       context,
-                //       PageTransition(
-                //           child: const SignUp(),
-                //           type: PageTransitionType.bottomToTop));
-                // },
+                 onTap: () {
+                   Navigator.pushReplacement(
+                       context,
+                       PageTransition(
+                           child: const SignUp(),
+                           type: PageTransitionType.bottomToTop));
+                 },
                 child: Center(
                   child: Text.rich(
                     TextSpan(children: [

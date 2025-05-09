@@ -31,6 +31,9 @@ class _DetailPageState extends State<DetailPage>
   double? recommendedWateringDays;
   double? recommendedWateringAmount;
 
+  bool isAutoIrrigationEnabled = false;
+  bool isManualIrrigationOn = false;
+
   Future<void> _loadLastHourHistory() async {
     try {
       final now = DateTime.now();
@@ -204,6 +207,24 @@ class _DetailPageState extends State<DetailPage>
     });
   }
 
+  void _toggleAutoIrrigation() {
+    setState(() {
+      isAutoIrrigationEnabled = !isAutoIrrigationEnabled;
+    });
+
+    // Optionally notify backend
+    print(
+        'Auto irrigation is now ${isAutoIrrigationEnabled ? 'enabled' : 'disabled'}');
+  }
+
+  void _triggerManualIrrigation() async {
+    // Optionally call backend or GPIO pin if connected
+    print('Manual irrigation triggered');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('💧 Manual irrigation activated!')),
+    );
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -281,6 +302,33 @@ class _DetailPageState extends State<DetailPage>
               ),
             ),
             const SizedBox(height: 10),
+            SwitchListTile(
+              title: const Text('Irrigation'),
+              subtitle: Text(isManualIrrigationOn ? '💧 ON' : '💤 OFF'),
+              secondary: const Icon(Icons.water),
+              value: isManualIrrigationOn,
+              onChanged: (bool value) {
+                setState(() {
+                  isManualIrrigationOn = value;
+                });
+
+                // Optional: Call your backend or GPIO controller here
+                if (value) {
+                  print('Irrigation turned ON');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('💧 Irrigation turned ON')),
+                  );
+                } else {
+                  print('Irrigation turned OFF');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('💤 Irrigation turned OFF')),
+                  );
+                }
+              },
+            ),
+
             Text(
               hasSuggestions
                   ? "Description: ${widget.plant.classification?.suggestions.first.details?.description?.value ?? 'No description available'}"
@@ -291,6 +339,12 @@ class _DetailPageState extends State<DetailPage>
                 height: 1.5,
               ),
             ),
+            // ElevatedButton.icon(
+            //   icon: Icon(Icons.auto_mode),
+            //   label: Text('Auto Irrigation'),
+            //   onPressed: _toggleAutoIrrigation,
+            // ),
+
             const SizedBox(height: 20),
             if (!kIsWeb &&
                 hasSuggestions &&
