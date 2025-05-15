@@ -35,7 +35,6 @@ class _DetailPageState extends State<DetailPage>
   List<Map<String, dynamic>> temperatureData = [];
   List<Map<String, dynamic>> soilHumidityData = [];
 
-  bool _isAskingCareTip = false;
 
 
   @override
