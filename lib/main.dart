@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_onboarding/ui/screens/ChatWithLLMScreen%20.dart';
 import 'package:flutter_onboarding/ui/screens/signin_page.dart';
 import 'ui/onboarding_screen.dart';
 // import 'ui/screens/signin_page.dart';
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const SignIn(),
         '/signin_page': (context) => const SignIn(),
+        '/chat': (context) => const ChatWithLLMScreen(),
       },
     );
   }
