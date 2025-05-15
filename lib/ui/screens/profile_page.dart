@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_onboarding/constants.dart';
 import 'package:flutter_onboarding/ui/screens/widgets/profile_widget.dart';
+import 'package:flutter_onboarding/ui/screens/sensor_history_page.dart';
+import 'package:flutter_onboarding/ui/screens/ChatWithLLMScreen .dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -21,7 +23,8 @@ class ProfilePage extends StatelessWidget {
                 width: 150,
                 child: const CircleAvatar(
                   radius: 60,
-                  backgroundImage: ExactAssetImage('assets/images/profile.jpg'),
+                  backgroundImage:
+                      ExactAssetImage('assets/images/profile2.jpg'),
                 ),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -60,26 +63,44 @@ class ProfilePage extends StatelessWidget {
               const SizedBox(height: 30),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
-                children: const [
-                  ProfileWidget(
-                    icon: Icons.person,
-                    title: 'My Profile',
-                  ),
-                  ProfileWidget(
-                    icon: Icons.settings,
-                    title: 'Settings',
-                  ),
-                  ProfileWidget(
-                    icon: Icons.notifications,
-                    title: 'Notifications',
-                  ),
+                children: [
+                  // const ProfileWidget(
+                  //   icon: Icons.person,
+                  //   title: 'My Profile',
+                  // ),
+                  // const ProfileWidget(
+                  //   icon: Icons.settings,
+                  //   title: 'Settings',
+                  // ),
+                  // const ProfileWidget(
+                  //   icon: Icons.notifications,
+                  //   title: 'Notifications',
+                  // ),
+                  // const ProfileWidget(
+                  //   icon: Icons.chat,
+                  //   title: 'FAQs',
+                  // ),
                   ProfileWidget(
                     icon: Icons.chat,
-                    title: 'FAQs',
+                    title: 'Chat with AI',
+                    onTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const ChatWithLLMScreen(),
+                      ));
+                    },
                   ),
+
                   ProfileWidget(
-                    icon: Icons.share,
-                    title: 'Share',
+                    icon: Icons.history,
+                    title: 'History',
+                    onTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const SensorHistoryPage(
+                          temperatureData: [],
+                          humidityData: [],
+                        ),
+                      ));
+                    },
                   ),
                 ],
               ),
@@ -92,13 +113,16 @@ class ProfilePage extends StatelessWidget {
                     icon: const Icon(Icons.logout, color: Colors.white),
                     label: const Text('Log Out'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red, 
+                      backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 20),
-                      textStyle: const TextStyle(fontSize: 16, ),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                      ),
                     ),
                     onPressed: () {
-                      Navigator.of(context).pushReplacementNamed('/signin_page');
+                      Navigator.of(context)
+                          .pushReplacementNamed('/signin_page');
                     },
                   ),
                 ),

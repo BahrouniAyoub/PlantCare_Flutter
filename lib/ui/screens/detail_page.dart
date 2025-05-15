@@ -4,12 +4,17 @@ import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_onboarding/constants.dart';
+import 'package:flutter_onboarding/main.dart';
 import 'package:flutter_onboarding/models/plants.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_onboarding/ui/screens/mqtt_service.dart';
+import 'package:flutter_onboarding/ui/screens/sensor_history_page.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 class DetailPage extends StatefulWidget {
   final Plant plant;
@@ -35,8 +40,6 @@ class _DetailPageState extends State<DetailPage>
   List<Map<String, dynamic>> temperatureData = [];
   List<Map<String, dynamic>> soilHumidityData = [];
 
-
-
   @override
   void initState() {
     super.initState();
@@ -52,36 +55,77 @@ class _DetailPageState extends State<DetailPage>
     _loadSensorHistory();
   }
 
-  void _handleMqttMessage(String topic, String message) {
+  void _handleMqttMessage(String topic, String message) async {
+    final now = DateTime.now();
+    final timeLabel =
+        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+
+    if (topic == 'sensor/${widget.plant.id}/temp') {
+      final tempValue = double.tryParse(message) ?? 0;
+      latestTemperature = tempValue;
+      temperatureData.add({'time': timeLabel, 'value': tempValue});
+      if (temperatureData.length > 6) temperatureData.removeAt(0);
+    } else if (topic == 'sensor/${widget.plant.id}/hum') {
+      final humValue = double.tryParse(message) ?? 0;
+      latestHumidity = humValue;
+      soilHumidityData.add({'time': timeLabel, 'value': humValue});
+      if (soilHumidityData.length > 6) soilHumidityData.removeAt(0);
+    }
+
+    if (latestTemperature != null && latestHumidity != null) {
+      final result = estimateWateringFrequencyAndAmount(
+        tMax: latestTemperature!,
+        tMin: latestHumidity! / 2,
+        latitude: 36.8,
+        dayOfYear: int.parse(DateFormat("D").format(now)),
+        kc: 0.5,
+        rootZoneWaterHoldingCapacityMm: 100,
+      );
+      recommendedWateringDays = result['days'];
+      recommendedWateringAmount = result['amountMm'];
+
+      final nextWatering =
+          now.add(Duration(days: recommendedWateringDays!.round()));
+      await saveLastWateringDate(now);
+      await scheduleWateringReminder(nextWatering,
+          plantName: widget.plant.name);
+    }
+
     setState(() {
-      final now = DateTime.now();
-      final timeLabel =
-          "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
-      if (topic == 'sensor/${widget.plant.id}/temp') {
-        final tempValue = double.tryParse(message) ?? 0;
-        latestTemperature = tempValue;
-        temperatureData.add({'time': timeLabel, 'value': tempValue});
-        if (temperatureData.length > 6) temperatureData.removeAt(0);
-      } else if (topic == 'sensor/${widget.plant.id}/hum') {
-        final humValue = double.tryParse(message) ?? 0;
-        latestHumidity = humValue;
-        soilHumidityData.add({'time': timeLabel, 'value': humValue});
-        if (soilHumidityData.length > 6) soilHumidityData.removeAt(0);
-      }
-      if (latestTemperature != null && latestHumidity != null) {
-        final result = estimateWateringFrequencyAndAmount(
-          tMax: latestTemperature!,
-          tMin: latestHumidity! / 2,
-          latitude: 36.8,
-          dayOfYear: int.parse(DateFormat("D").format(now)),
-          kc: 0.5,
-          rootZoneWaterHoldingCapacityMm: 100,
-        );
-        recommendedWateringDays = result['days'];
-        recommendedWateringAmount = result['amountMm'];
-      }
       _lastUpdated = now.toLocal().toString().substring(0, 16);
     });
+  }
+
+  Future<void> saveLastWateringDate(DateTime date) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        'lastWatering_${widget.plant.id}', date.toIso8601String());
+  }
+
+  Future<DateTime?> getLastWateringDate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString('lastWatering_${widget.plant.id}');
+    return stored != null ? DateTime.tryParse(stored) : null;
+  }
+
+  Future<void> scheduleWateringReminder(DateTime dateTime,
+      {required String plantName}) async {
+    const androidDetails = AndroidNotificationDetails(
+      'watering_channel',
+      'Watering Notifications',
+      channelDescription: 'Reminders to water your plants',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await notificationsPlugin.show(
+      0, // Notification ID
+      '💧 Time to Water',
+      '🚨 It’s time to water your $plantName!',
+      notificationDetails,
+    );
   }
 
   Future<void> _loadSensorHistory() async {
@@ -114,7 +158,6 @@ class _DetailPageState extends State<DetailPage>
     }
   }
 
-  
   @override
   void dispose() {
     _tabController.dispose();
@@ -284,16 +327,29 @@ class _DetailPageState extends State<DetailPage>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => SensorHistoryPage(
+                temperatureData: temperatureData,
+                humidityData: soilHumidityData,
+              ),
+            ));
+          },
+          icon: const Icon(Icons.history),
+          label: const Text("View Full History"),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+        const SizedBox(height: 16),
         _buildSensorCard(
           label: "🌡️ Temperature",
           latest: latestTemperature,
           data: temperatureData,
           color: Colors.red,
         ),
-        const SizedBox(height: 12),
-        if (temperatureData.isNotEmpty)
-          ...temperatureData.map((entry) => Text(
-              "🕒 ${entry['time']} → 🌡️ ${entry['value'].toStringAsFixed(2)} °C")),
         const SizedBox(height: 24),
         _buildSensorCard(
           label: "💧 Humidity",
@@ -301,10 +357,6 @@ class _DetailPageState extends State<DetailPage>
           data: soilHumidityData,
           color: Colors.blue,
         ),
-        const SizedBox(height: 12),
-        if (soilHumidityData.isNotEmpty)
-          ...soilHumidityData.map((entry) => Text(
-              "🕒 ${entry['time']} → 💧 ${entry['value'].toStringAsFixed(2)} %")),
         const SizedBox(height: 24),
         Center(child: Text('Last Updated: $_lastUpdated')),
       ],
@@ -331,7 +383,7 @@ class _DetailPageState extends State<DetailPage>
             const SizedBox(height: 8),
             Text(latest != null
                 ? "Current: ${latest.toStringAsFixed(2)}"
-                : "Waiting for data..."),
+                : ""),
             const SizedBox(height: 10),
             data.isNotEmpty
                 ? _buildLineChart(data, color)
@@ -348,6 +400,28 @@ class _DetailPageState extends State<DetailPage>
         ? ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await scheduleWateringReminder(
+                    DateTime.now()
+                        .add(const Duration(seconds: 1)), // 1 second later
+                    plantName: widget.plant.name,
+                  );
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content:
+                            Text('🔔 Test notification scheduled in 1 second')),
+                  );
+                },
+                icon: const Icon(Icons.notifications_active),
+                label: const Text("🔔 Test Notification Now"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
               Card(
                 color: Colors.lightBlue.shade50,
                 margin: const EdgeInsets.symmetric(vertical: 10),
@@ -371,25 +445,23 @@ class _DetailPageState extends State<DetailPage>
                   ),
                 ),
               ),
-
               const SizedBox(height: 10),
-
-               CareTipFeature(
-                   emoji: "☀️",
-                   title: "Best Light",
-                   description: details.bestLightCondition ?? "Unknown"),
-               CareTipFeature(
-                   emoji: "🌱",
-                   title: "Best Soil",
-                   description: details.bestSoilType ?? "Unknown"),
-               CareTipFeature(
-                   emoji: "💧",
-                   title: "Best Watering",
-                   description: details.bestWatering ?? "Unknown"),
-               CareTipFeature(
-                   emoji: "🌸",
-                   title: "Common Uses",
-                   description: details.commonUses ?? "Unknown"),
+              CareTipFeature(
+                  emoji: "☀️",
+                  title: "Best Light",
+                  description: details.bestLightCondition ?? "Unknown"),
+              CareTipFeature(
+                  emoji: "🌱",
+                  title: "Best Soil",
+                  description: details.bestSoilType ?? "Unknown"),
+              CareTipFeature(
+                  emoji: "💧",
+                  title: "Best Watering",
+                  description: details.bestWatering ?? "Unknown"),
+              CareTipFeature(
+                  emoji: "🌸",
+                  title: "Common Uses",
+                  description: details.commonUses ?? "Unknown"),
             ],
           )
         : const Center(child: Text("No care tips available."));
@@ -427,24 +499,70 @@ class _DetailPageState extends State<DetailPage>
 
   Widget _buildLineChart(List<Map<String, dynamic>> data, Color lineColor) {
     return SizedBox(
-      height: 150,
+      height: 220,
       child: LineChart(
         LineChartData(
-          gridData: FlGridData(show: true),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(show: false),
+          minY: data.map((d) => (d['value'] as num).toDouble()).reduce(min) - 1,
+          maxY: data.map((d) => (d['value'] as num).toDouble()).reduce(max) + 1,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: true,
+            getDrawingHorizontalLine: (value) => FlLine(
+              color: Colors.grey.shade300,
+              strokeWidth: 1,
+            ),
+            getDrawingVerticalLine: (value) => FlLine(
+              color: Colors.grey.shade300,
+              strokeWidth: 1,
+            ),
+          ),
+          titlesData: FlTitlesData(
+            show: true,
+            // leftTitles: AxisTitles(
+            //   sideTitles: SideTitles(
+            //     showTitles: true,
+            //     reservedSize: 40,
+            //     interval: 1,
+            //     getTitlesWidget: (value, meta) =>
+            //         Text('${value.toStringAsFixed(0)}'),
+            //   ),
+            // ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: 1,
+                getTitlesWidget: (value, meta) {
+                  final index = value.toInt();
+                  if (index >= 0 && index < data.length) {
+                    return Text(data[index]['time'],
+                        style: const TextStyle(fontSize: 10));
+                  } else {
+                    return const SizedBox.shrink();
+                  }
+                },
+              ),
+            ),
+          ),
+          borderData: FlBorderData(show: true),
           lineBarsData: [
             LineChartBarData(
               spots: data
                   .asMap()
                   .entries
                   .map((e) => FlSpot(
-                      e.key.toDouble(), (e.value['value'] as num).toDouble()))
+                        e.key.toDouble(),
+                        (e.value['value'] as num).toDouble(),
+                      ))
                   .toList(),
               isCurved: true,
               color: lineColor,
               barWidth: 3,
+              isStrokeCapRound: true,
               dotData: FlDotData(show: true),
+              belowBarData: BarAreaData(
+                show: true,
+                color: lineColor.withOpacity(0.2),
+              ),
             ),
           ],
         ),
