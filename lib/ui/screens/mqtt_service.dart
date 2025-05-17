@@ -8,6 +8,20 @@ class MqttService {
   late MqttServerClient client;
   final String plantId;
 
+  void subscribe(String topic) {
+    client?.subscribe(topic, MqttQos.atLeastOnce);
+  }
+
+  void unsubscribe(String topic) {
+    client?.unsubscribe(topic);
+  }
+
+  Future<void> publish(String topic, String message) async {
+    final builder = MqttClientPayloadBuilder();
+    builder.addString(message);
+    client?.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+  }
+
   MqttService({required this.onMessageReceived, required this.plantId});
 
   Future<void> connect() async {

@@ -37,6 +37,9 @@ class _DetailPageState extends State<DetailPage>
   bool isManualIrrigationOn = false;
   String _lastUpdated = DateTime.now().toLocal().toString().substring(0, 16);
 
+  bool _isAutoIrrigation = false;
+  bool _isWateringNow = false;
+
   List<Map<String, dynamic>> temperatureData = [];
   List<Map<String, dynamic>> soilHumidityData = [];
 
@@ -193,102 +196,286 @@ class _DetailPageState extends State<DetailPage>
     );
   }
 
-  Widget _buildInfoTab() {
-    final suggestions = widget.plant.classification?.suggestions;
-    final description = suggestions?.isNotEmpty == true
-        ? suggestions!.first.details?.description?.value ??
-            'No description available'
-        : 'No description available';
+  void _enableAutoIrrigation() {
+    // Start listening to sensor data for auto decisions
+    mqttService.subscribe('auto/${widget.plant.id}');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Automatic irrigation enabled')),
+    );
+  }
 
-    final similarImages = suggestions?.first.similarImages;
+  void _disableAutoIrrigation() {
+    // Stop auto watering logic
+    mqttService.unsubscribe('auto/${widget.plant.id}');
+  }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+  Future<void> _startManualWatering() async {
+    setState(() => _isWateringNow = true);
+
+    // Send command to device
+    await mqttService.publish(
+      'actuator/${widget.plant.id}/water',
+      '250', // Default manual amount or let user specify
+    );
+
+    // Simulate watering time
+    await Future.delayed(const Duration(seconds: 5));
+
+    setState(() => _isWateringNow = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Manual watering completed')),
+    );
+  }
+
+  String _getNextWateringTime() {
+    return recommendedWateringDays != null
+        ? DateFormat('MMM dd, hh:mm a').format(DateTime.now()
+            .add(Duration(days: recommendedWateringDays!.round())))
+        : 'Calculating...';
+  }
+
+ 
+ Widget _buildInfoTab() {
+  final suggestions = widget.plant.classification?.suggestions;
+  final description = suggestions?.isNotEmpty == true
+      ? suggestions!.first.details?.description?.value ??
+          'No description available'
+      : 'No description available';
+
+  final similarImages = suggestions?.first.similarImages;
+
+  return SingleChildScrollView(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Plant Card with Image and Basic Info
         Card(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 3,
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (widget.plant.image.isNotEmpty)
-                ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: Image.memory(
-                    base64Decode(widget.plant.image.split(',').last),
-                    height: 250,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                Container(
+                  height: 220,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    image: DecorationImage(
+                      image: MemoryImage(
+                        base64Decode(widget.plant.image.split(',').last),
+                      ),
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
-              ListTile(
-                title: Text(widget.plant.name,
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold)),
-                subtitle: Text(description),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.plant.name,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[700],
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              SwitchListTile(
-                title: const Text('Irrigation'),
-                subtitle: Text(isManualIrrigationOn ? 'ON' : 'OFF'),
-                value: isManualIrrigationOn,
-                onChanged: (val) {
-                  setState(() => isManualIrrigationOn = val);
-                },
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/chat');
-                },
-                child: const Text('🧠 Ask the AI'),
-              ),
-              if (similarImages != null && similarImages.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Irrigation Control Section
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Irrigation Control',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                
+                // Mode Toggle
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Similar Images',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        'Irrigation Mode',
+                        style: TextStyle(fontSize: 16),
                       ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 100,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: similarImages.length,
-                          itemBuilder: (context, index) {
-                            final image = similarImages[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  image.urlSmall.isNotEmpty
-                                      ? image.urlSmall
-                                      : image.url,
-                                  height: 100,
-                                  width: 100,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                      Switch(
+                        value: _isAutoIrrigation,
+                        onChanged: (value) {
+                          setState(() {
+                            _isAutoIrrigation = value;
+                            if (value) {
+                              _enableAutoIrrigation();
+                            } else {
+                              _disableAutoIrrigation();
+                            }
+                          });
+                        },
+                        activeColor: Colors.green,
                       ),
                     ],
                   ),
                 ),
-            ],
+
+                const SizedBox(height: 12),
+                
+                // Mode-specific Controls
+                if (_isAutoIrrigation)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(Icons.autorenew, 
+                              color: Colors.green, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Automatic Mode',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Next watering: ${_getNextWateringTime()}',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    icon: _isWateringNow
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.water_drop, size: 20),
+                    label: Text(
+                      _isWateringNow ? 'Watering in Progress' : 'Water Now',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    onPressed: _isWateringNow ? null : _startManualWatering,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
+
+        const SizedBox(height: 20),
+
+        // Similar Images Section
+        if (similarImages != null && similarImages.isNotEmpty) ...[
+          const Text(
+            'Similar Plants',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: similarImages.length,
+              itemBuilder: (context, index) {
+                final image = similarImages[index];
+                return Container(
+                  width: 120,
+                  margin: const EdgeInsets.only(right: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: NetworkImage(
+                        image.urlSmall.isNotEmpty ? image.urlSmall : image.url),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // AI Chat Button
+        OutlinedButton.icon(
+          icon: const Icon(Icons.chat_bubble_outline),
+          label: const Text('Ask Plant AI Assistant'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.green,
+            side: const BorderSide(color: Colors.green),
+            minimumSize: const Size(double.infinity, 48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: () => Navigator.pushNamed(context, '/chat'),
+        ),
       ],
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHealthTab() {
     final health = widget.plant.plantHealth;
@@ -381,9 +568,7 @@ class _DetailPageState extends State<DetailPage>
                 style:
                     const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             const SizedBox(height: 8),
-            Text(latest != null
-                ? "Current: ${latest.toStringAsFixed(2)}"
-                : ""),
+            Text(latest != null ? "Current: ${latest.toStringAsFixed(2)}" : ""),
             const SizedBox(height: 10),
             data.isNotEmpty
                 ? _buildLineChart(data, color)
@@ -394,78 +579,247 @@ class _DetailPageState extends State<DetailPage>
     );
   }
 
-  Widget _buildCareTipsTab() {
-    final details = widget.plant.classification?.suggestions.first.details;
-    return details != null
-        ? ListView(
+ Widget _buildCareTipsTab() {
+  final details = widget.plant.classification?.suggestions.first.details;
+  return SingleChildScrollView(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Watering Recommendation Card
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Padding(
             padding: const EdgeInsets.all(16),
-            children: [
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await scheduleWateringReminder(
-                    DateTime.now()
-                        .add(const Duration(seconds: 1)), // 1 second later
-                    plantName: widget.plant.name,
-                  );
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content:
-                            Text('🔔 Test notification scheduled in 1 second')),
-                  );
-                },
-                icon: const Icon(Icons.notifications_active),
-                label: const Text("🔔 Test Notification Now"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.water_drop,
+                        color: Colors.blue,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Watering Guide',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Card(
-                color: Colors.lightBlue.shade50,
-                margin: const EdgeInsets.symmetric(vertical: 10),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
+                const SizedBox(height: 12),
+                if (recommendedWateringDays != null && recommendedWateringAmount != null)
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('💧 AI-Based Watering Suggestion',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Text(
-                        recommendedWateringDays != null &&
-                                recommendedWateringAmount != null
-                            ? '• Every ${recommendedWateringDays!.toStringAsFixed(1)} days\n• ${recommendedWateringAmount!.toStringAsFixed(0)} mm per watering'
-                            : 'ℹ️ Data is being collected... watering suggestion will appear soon.',
-                        style: const TextStyle(fontSize: 15),
+                      _buildWateringTipItem(
+                        icon: Icons.calendar_today,
+                        title: 'Frequency',
+                        value: 'Every ${recommendedWateringDays!.toStringAsFixed(1)} days',
+                      ),
+                      _buildWateringTipItem(
+                        icon: Icons.thermostat,
+                        title: 'Amount',
+                        value: '${recommendedWateringAmount!.toStringAsFixed(0)} mm per watering',
+                      ),
+                      _buildWateringTipItem(
+                        icon: Icons.notifications,
+                        title: 'Next Watering',
+                        value: _getNextWateringTime(),
                       ),
                     ],
+                  )
+                else
+                  const Text(
+                    'Calculating watering recommendations...',
+                    style: TextStyle(color: Colors.grey),)
+              ],
+            ),
+          ),
+        ),
+
+        // Notification Test Button
+        Center(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.notifications_active, size: 20),
+            label: const Text("Test Watering Reminder"),
+            onPressed: () async {
+              await scheduleWateringReminder(
+                DateTime.now().add(const Duration(seconds: 1)),
+                plantName: widget.plant.name,
+              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Test notification scheduled in 1 second'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Care Tips Section
+        if (details != null) ...[
+          const Text(
+            'Plant Care Guide',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildCareTipCard(
+            icon: Icons.light_mode,
+            title: 'Light Requirements',
+            content: details.bestLightCondition ?? 'Not specified',
+            color: Colors.orange[50]!,
+          ),
+          _buildCareTipCard(
+            icon: Icons.grass,
+            title: 'Soil Preferences',
+            content: details.bestSoilType ?? 'Not specified',
+            color: Colors.brown[50]!,
+          ),
+          _buildCareTipCard(
+            icon: Icons.opacity,
+            title: 'Watering Tips',
+            content: details.bestWatering ?? 'Not specified',
+            color: Colors.blue[50]!,
+          ),
+          _buildCareTipCard(
+            icon: Icons.eco,
+            title: 'Common Uses',
+            content: details.commonUses ?? 'Not specified',
+            color: Colors.green[50]!,
+          ),
+        ] else
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: 40),
+              child: Text(
+                'No care information available',
+                style: TextStyle(color: Colors.grey),
+            ),
+          ),
+    )],
+    ),
+  );
+}
+
+Widget _buildWateringTipItem({
+  required IconData icon,
+  required String title,
+  required String value,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        Icon(icon, size: 20, color: Colors.blue),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildCareTipCard({
+  required IconData icon,
+  required String title,
+  required String content,
+  required Color color,
+}) {
+  return Card(
+    margin: const EdgeInsets.only(bottom: 16),
+    elevation: 0,
+    color: color,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 20, color: Colors.grey[700]),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              CareTipFeature(
-                  emoji: "☀️",
-                  title: "Best Light",
-                  description: details.bestLightCondition ?? "Unknown"),
-              CareTipFeature(
-                  emoji: "🌱",
-                  title: "Best Soil",
-                  description: details.bestSoilType ?? "Unknown"),
-              CareTipFeature(
-                  emoji: "💧",
-                  title: "Best Watering",
-                  description: details.bestWatering ?? "Unknown"),
-              CareTipFeature(
-                  emoji: "🌸",
-                  title: "Common Uses",
-                  description: details.commonUses ?? "Unknown"),
-            ],
-          )
-        : const Center(child: Text("No care tips available."));
-  }
+                const SizedBox(height: 8),
+                Text(
+                  content,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildRecommendationCard() {
     return Card(
@@ -518,15 +872,6 @@ class _DetailPageState extends State<DetailPage>
           ),
           titlesData: FlTitlesData(
             show: true,
-            // leftTitles: AxisTitles(
-            //   sideTitles: SideTitles(
-            //     showTitles: true,
-            //     reservedSize: 40,
-            //     interval: 1,
-            //     getTitlesWidget: (value, meta) =>
-            //         Text('${value.toStringAsFixed(0)}'),
-            //   ),
-            // ),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,

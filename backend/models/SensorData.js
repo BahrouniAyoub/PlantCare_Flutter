@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const sensorDataSchema = new mongoose.Schema({
   plantId: String,
-  sensorType: String, // 'temp' or 'hum'
+  sensorType: String, 
   value: Number,
   timestamp: {
     type: Date,
