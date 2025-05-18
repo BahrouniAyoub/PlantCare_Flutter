@@ -20,10 +20,10 @@ class _ChatWithLLMScreenState extends State<ChatWithLLMScreen> {
       response = null;
     });
 
-    const ollamaUrl = 'http://10.0.2.2:11434/api/generate'; // or 10.0.2.2 on Android emulator
+    const ollamaUrl = 'http://10.0.2.2:11434/api/generate'; 
 
     final body = jsonEncode({
-      "model": "mistral", // or another model you have locally
+      "model": "mistral", 
       "prompt": prompt,
       "stream": false
     });

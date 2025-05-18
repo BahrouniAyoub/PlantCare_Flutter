@@ -15,6 +15,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_onboarding/services/api_server.dart';
 
 class DetailPage extends StatefulWidget {
   final Plant plant;
@@ -39,6 +40,7 @@ class _DetailPageState extends State<DetailPage>
 
   bool _isAutoIrrigation = false;
   bool _isWateringNow = false;
+  bool? _needsWater;
 
   List<Map<String, dynamic>> temperatureData = [];
   List<Map<String, dynamic>> soilHumidityData = [];
@@ -92,6 +94,7 @@ class _DetailPageState extends State<DetailPage>
       await saveLastWateringDate(now);
       await scheduleWateringReminder(nextWatering,
           plantName: widget.plant.name);
+      await _fetchWateringPrediction();
     }
 
     setState(() {
@@ -129,6 +132,23 @@ class _DetailPageState extends State<DetailPage>
       '🚨 It’s time to water your $plantName!',
       notificationDetails,
     );
+  }
+
+  Future<void> _fetchWateringPrediction() async {
+    if (latestTemperature == null || latestHumidity == null) return;
+
+    final result = await ApiService.getWateringRecommendation(
+      soilMoisture: latestTemperature!,
+      temperature: latestHumidity!,
+      soilHumidity: 75,
+      ph: 6.5,
+      rainfall: 0,
+      airHumidity: 65,
+    );
+
+    setState(() {
+      _needsWater = result;
+    });
   }
 
   Future<void> _loadSensorHistory() async {
@@ -234,248 +254,248 @@ class _DetailPageState extends State<DetailPage>
         : 'Calculating...';
   }
 
- 
- Widget _buildInfoTab() {
-  final suggestions = widget.plant.classification?.suggestions;
-  final description = suggestions?.isNotEmpty == true
-      ? suggestions!.first.details?.description?.value ??
-          'No description available'
-      : 'No description available';
+  Widget _buildInfoTab() {
+    final suggestions = widget.plant.classification?.suggestions;
+    final description = suggestions?.isNotEmpty == true
+        ? suggestions!.first.details?.description?.value ??
+            'No description available'
+        : 'No description available';
 
-  final similarImages = suggestions?.first.similarImages;
+    final similarImages = suggestions?.first.similarImages;
 
-  return SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Plant Card with Image and Basic Info
-        Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.plant.image.isNotEmpty)
-                Container(
-                  height: 220,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: MemoryImage(
-                        base64Decode(widget.plant.image.split(',').last),
-                      ),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.plant.name,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[700],
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        // Irrigation Control Section
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Plant Card with Image and Basic Info
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Irrigation Control',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                
-                // Mode Toggle
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Irrigation Mode',
-                        style: TextStyle(fontSize: 16),
+                if (widget.plant.image.isNotEmpty)
+                  Container(
+                    height: 220,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: MemoryImage(
+                          base64Decode(widget.plant.image.split(',').last),
+                        ),
+                        fit: BoxFit.cover,
                       ),
-                      Switch(
-                        value: _isAutoIrrigation,
-                        onChanged: (value) {
-                          setState(() {
-                            _isAutoIrrigation = value;
-                            if (value) {
-                              _enableAutoIrrigation();
-                            } else {
-                              _disableAutoIrrigation();
-                            }
-                          });
-                        },
-                        activeColor: Colors.green,
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.plant.name,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[700],
+                          height: 1.4,
+                        ),
                       ),
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 12),
-                
-                // Mode-specific Controls
-                if (_isAutoIrrigation)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: const [
-                            Icon(Icons.autorenew, 
-                              color: Colors.green, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'Automatic Mode',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Next watering: ${_getNextWateringTime()}',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  ElevatedButton.icon(
-                    icon: _isWateringNow
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.water_drop, size: 20),
-                    label: Text(
-                      _isWateringNow ? 'Watering in Progress' : 'Water Now',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    onPressed: _isWateringNow ? null : _startManualWatering,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
-        ),
 
-        const SizedBox(height: 20),
+          const SizedBox(height: 20),
 
-        // Similar Images Section
-        if (similarImages != null && similarImages.isNotEmpty) ...[
-          const Text(
-            'Similar Plants',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          // Irrigation Control Section
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: similarImages.length,
-              itemBuilder: (context, index) {
-                final image = similarImages[index];
-                return Container(
-                  width: 120,
-                  margin: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(
-                      image: NetworkImage(
-                        image.urlSmall.isNotEmpty ? image.urlSmall : image.url),
-                      fit: BoxFit.cover,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Irrigation Control',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
+                  const SizedBox(height: 12),
 
-        // AI Chat Button
-        OutlinedButton.icon(
-          icon: const Icon(Icons.chat_bubble_outline),
-          label: const Text('Ask Plant AI Assistant'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.green,
-            side: const BorderSide(color: Colors.green),
-            minimumSize: const Size(double.infinity, 48),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+                  // Mode Toggle
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Irrigation Mode',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        Switch(
+                          value: _isAutoIrrigation,
+                          onChanged: (value) {
+                            setState(() {
+                              _isAutoIrrigation = value;
+                              if (value) {
+                                _enableAutoIrrigation();
+                              } else {
+                                _disableAutoIrrigation();
+                              }
+                            });
+                          },
+                          activeColor: Colors.green,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Mode-specific Controls
+                  if (_isAutoIrrigation)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.autorenew,
+                                  color: Colors.green, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Automatic Mode',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Next watering: ${_getNextWateringTime()}',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    ElevatedButton.icon(
+                      icon: _isWateringNow
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.water_drop, size: 20),
+                      label: Text(
+                        _isWateringNow ? 'Watering in Progress' : 'Water Now',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      onPressed: _isWateringNow ? null : _startManualWatering,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-          onPressed: () => Navigator.pushNamed(context, '/chat'),
-        ),
-      ],
-    ),
-  );
-}
+
+          const SizedBox(height: 20),
+
+          // Similar Images Section
+          if (similarImages != null && similarImages.isNotEmpty) ...[
+            const Text(
+              'Similar Plants',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: similarImages.length,
+                itemBuilder: (context, index) {
+                  final image = similarImages[index];
+                  return Container(
+                    width: 120,
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      image: DecorationImage(
+                        image: NetworkImage(image.urlSmall.isNotEmpty
+                            ? image.urlSmall
+                            : image.url),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // AI Chat Button
+          OutlinedButton.icon(
+            icon: const Icon(Icons.chat_bubble_outline),
+            label: const Text('Ask Plant AI Assistant'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.green,
+              side: const BorderSide(color: Colors.green),
+              minimumSize: const Size(double.infinity, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () => Navigator.pushNamed(context, '/chat'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildHealthTab() {
     final health = widget.plant.plantHealth;
@@ -511,42 +531,104 @@ class _DetailPageState extends State<DetailPage>
   }
 
   Widget _buildSensorTab() {
-    return ListView(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      children: [
-        ElevatedButton.icon(
-          onPressed: () {
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => SensorHistoryPage(
-                temperatureData: temperatureData,
-                humidityData: soilHumidityData,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: const [
+              Icon(Icons.sensors, color: Colors.green),
+              SizedBox(width: 8),
+              Text(
+                "Live Sensor Overview",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-            ));
-          },
-          icon: const Icon(Icons.history),
-          label: const Text("View Full History"),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ],
           ),
-        ),
-        const SizedBox(height: 16),
-        _buildSensorCard(
-          label: "🌡️ Temperature",
-          latest: latestTemperature,
-          data: temperatureData,
-          color: Colors.red,
-        ),
-        const SizedBox(height: 24),
-        _buildSensorCard(
-          label: "💧 Humidity",
-          latest: latestHumidity,
-          data: soilHumidityData,
-          color: Colors.blue,
-        ),
-        const SizedBox(height: 24),
-        Center(child: Text('Last Updated: $_lastUpdated')),
-      ],
+          const SizedBox(height: 16),
+
+          // Prediction Card
+          if (_needsWater != null)
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              color: _needsWater! ? Colors.red[50] : Colors.green[50],
+              child: ListTile(
+                leading: Icon(
+                  _needsWater! ? Icons.warning : Icons.check_circle,
+                  color: _needsWater! ? Colors.red : Colors.green,
+                ),
+                title: Text(
+                  _needsWater!
+                      ? "🌱 Watering Needed"
+                      : "✅ No Watering Required",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _needsWater! ? Colors.red : Colors.green,
+                  ),
+                ),
+                subtitle: Text("Based on latest sensor readings"),
+              ),
+            ),
+
+          const SizedBox(height: 20),
+
+          // Temperature Sensor
+          _buildSensorCard(
+            label: "🌡️ Temperature",
+            latest: latestTemperature,
+            data: temperatureData,
+            color: Colors.redAccent,
+          ),
+          const SizedBox(height: 24),
+
+          // Humidity Sensor
+          _buildSensorCard(
+            label: "💧 Soil Humidity",
+            latest: latestHumidity,
+            data: soilHumidityData,
+            color: Colors.blueAccent,
+          ),
+          const SizedBox(height: 24),
+
+          // View History Button
+          Center(
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => SensorHistoryPage(
+                    temperatureData: temperatureData,
+                    humidityData: soilHumidityData,
+                  ),
+                ));
+              },
+              icon: const Icon(Icons.history),
+              label: const Text("View Full History"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+          Center(
+            child: Text(
+              'Last Updated: $_lastUpdated',
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -579,247 +661,253 @@ class _DetailPageState extends State<DetailPage>
     );
   }
 
- Widget _buildCareTipsTab() {
-  final details = widget.plant.classification?.suggestions.first.details;
-  return SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Watering Recommendation Card
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          margin: const EdgeInsets.only(bottom: 16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.water_drop,
-                        color: Colors.blue,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Watering Guide',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (recommendedWateringDays != null && recommendedWateringAmount != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildCareTipsTab() {
+    final details = widget.plant.classification?.suggestions.first.details;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Watering Recommendation Card
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.only(bottom: 16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      _buildWateringTipItem(
-                        icon: Icons.calendar_today,
-                        title: 'Frequency',
-                        value: 'Every ${recommendedWateringDays!.toStringAsFixed(1)} days',
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.water_drop,
+                          color: Colors.blue,
+                          size: 24,
+                        ),
                       ),
-                      _buildWateringTipItem(
-                        icon: Icons.thermostat,
-                        title: 'Amount',
-                        value: '${recommendedWateringAmount!.toStringAsFixed(0)} mm per watering',
-                      ),
-                      _buildWateringTipItem(
-                        icon: Icons.notifications,
-                        title: 'Next Watering',
-                        value: _getNextWateringTime(),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Watering Guide',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
-                  )
-                else
-                  const Text(
-                    'Calculating watering recommendations...',
-                    style: TextStyle(color: Colors.grey),)
-              ],
-            ),
-          ),
-        ),
-
-        // Notification Test Button
-        Center(
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.notifications_active, size: 20),
-            label: const Text("Test Watering Reminder"),
-            onPressed: () async {
-              await scheduleWateringReminder(
-                DateTime.now().add(const Duration(seconds: 1)),
-                plantName: widget.plant.name,
-              );
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Test notification scheduled in 1 second'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                  ),
+                  const SizedBox(height: 12),
+                  if (recommendedWateringDays != null &&
+                      recommendedWateringAmount != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildWateringTipItem(
+                          icon: Icons.calendar_today,
+                          title: 'Frequency',
+                          value:
+                              'Every ${recommendedWateringDays!.toStringAsFixed(1)} days',
+                        ),
+                        _buildWateringTipItem(
+                          icon: Icons.thermostat,
+                          title: 'Amount',
+                          value:
+                              '${recommendedWateringAmount!.toStringAsFixed(0)} mm per watering',
+                        ),
+                        _buildWateringTipItem(
+                          icon: Icons.notifications,
+                          title: 'Next Watering',
+                          value: _getNextWateringTime(),
+                        ),
+                      ],
+                    )
+                  else
+                    const Text(
+                      'Calculating watering recommendations...',
+                      style: TextStyle(color: Colors.grey),
+                    )
+                ],
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 20),
 
-        // Care Tips Section
-        if (details != null) ...[
-          const Text(
-            'Plant Care Guide',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          // Notification Test Button
+          Center(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.notifications_active, size: 20),
+              label: const Text("Test Watering Reminder"),
+              onPressed: () async {
+                await scheduleWateringReminder(
+                  DateTime.now().add(const Duration(seconds: 1)),
+                  plantName: widget.plant.name,
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Test notification scheduled in 1 second'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          _buildCareTipCard(
-            icon: Icons.light_mode,
-            title: 'Light Requirements',
-            content: details.bestLightCondition ?? 'Not specified',
-            color: Colors.orange[50]!,
-          ),
-          _buildCareTipCard(
-            icon: Icons.grass,
-            title: 'Soil Preferences',
-            content: details.bestSoilType ?? 'Not specified',
-            color: Colors.brown[50]!,
-          ),
-          _buildCareTipCard(
-            icon: Icons.opacity,
-            title: 'Watering Tips',
-            content: details.bestWatering ?? 'Not specified',
-            color: Colors.blue[50]!,
-          ),
-          _buildCareTipCard(
-            icon: Icons.eco,
-            title: 'Common Uses',
-            content: details.commonUses ?? 'Not specified',
-            color: Colors.green[50]!,
-          ),
-        ] else
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.only(top: 40),
-              child: Text(
-                'No care information available',
-                style: TextStyle(color: Colors.grey),
-            ),
-          ),
-    )],
-    ),
-  );
-}
+          const SizedBox(height: 20),
 
-Widget _buildWateringTipItem({
-  required IconData icon,
-  required String title,
-  required String value,
-}) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      children: [
-        Icon(icon, size: 20, color: Colors.blue),
-        const SizedBox(width: 12),
-        Column(
+          // Care Tips Section
+          if (details != null) ...[
+            const Text(
+              'Plant Care Guide',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildCareTipCard(
+              icon: Icons.light_mode,
+              title: 'Light Requirements',
+              content: details.bestLightCondition ?? 'Not specified',
+              color: Colors.orange[50]!,
+            ),
+            _buildCareTipCard(
+              icon: Icons.grass,
+              title: 'Soil Preferences',
+              content: details.bestSoilType ?? 'Not specified',
+              color: Colors.brown[50]!,
+            ),
+            _buildCareTipCard(
+              icon: Icons.opacity,
+              title: 'Watering Tips',
+              content: details.bestWatering ?? 'Not specified',
+              color: Colors.blue[50]!,
+            ),
+            _buildCareTipCard(
+              icon: Icons.eco,
+              title: 'Common Uses',
+              content: details.commonUses ?? 'Not specified',
+              color: Colors.green[50]!,
+            ),
+          ] else
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: Text(
+                  'No care information available',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWateringTipItem({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Colors.blue),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCareTipCard({
+    required IconData icon,
+    required String title,
+    required String content,
+    required Color color,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 0,
+      color: color,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
               ),
+              child: Icon(icon, size: 20, color: Colors.grey[700]),
             ),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    content,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-      ],
-    ),
-  );
-}
-
-Widget _buildCareTipCard({
-  required IconData icon,
-  required String title,
-  required String content,
-  required Color color,
-}) {
-  return Card(
-    margin: const EdgeInsets.only(bottom: 16),
-    elevation: 0,
-    color: color,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 20, color: Colors.grey[700]),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  content,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[700],
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildRecommendationCard() {
     return Card(
