@@ -109,3 +109,14 @@ exports.deletePlant = async (req, res) => {
     res.status(500).send('Error deleting plant');
   }
 };
+
+
+exports.assignPlantToPot = async (req, res) => {
+  const { plantId, potName } = req.body;
+  try {
+    const updated = await Plant.findByIdAndUpdate(plantId, { assignedPot: potName }, { new: true });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Error assigning plant to pot' });
+  }
+};

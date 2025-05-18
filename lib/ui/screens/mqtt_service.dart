@@ -87,7 +87,7 @@ class MqttService {
 
     try {
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/save'), // Replace this
+        Uri.parse('http://192.168.1.10:5000/api/save'), // Replace this
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'plantId': plantId,

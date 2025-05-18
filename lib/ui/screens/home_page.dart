@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_onboarding/ui/scan_page.dart';
+import 'package:flutter_onboarding/ui/screens/assign_plant_page.dart';
 import 'package:flutter_onboarding/ui/screens/detail_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_onboarding/models/plants.dart';
@@ -19,7 +20,7 @@ class _HomePageState extends State<HomePage> {
   bool _isLoading = true;
 
   String get _backendUrl {
-    return 'http://10.0.2.2:5000'; // Replace with your backend IP
+    return 'http://192.168.1.10:5000'; // Replace with your backend IP
   }
 
   @override
@@ -109,54 +110,82 @@ class _HomePageState extends State<HomePage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : plantList.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No Plant Found',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: plantList.length,
-                  itemBuilder: (context, index) {
-                    final plant = plantList[index];
-                    return Dismissible(
-                      key: Key(plant.id),
-                      direction: DismissDirection.endToStart,
-                      onDismissed: (_) => deletePlant(plant.id),
-                      background: Container(
-                        color: Colors.red,
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 20),
-                        child: const Icon(Icons.delete, color: Colors.white),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(8),
-                        leading: Image.memory(
-                          base64Decode(plant.image.split(',').last),
-                          height: 80,
-                          width: 80,
-                          fit: BoxFit.cover,
+          : Column(
+              children: [
+                // Padding(
+                //   padding: const EdgeInsets.all(12.0),
+                //   child: ElevatedButton.icon(
+                //     onPressed: () {
+                //       Navigator.push(
+                //         context,
+                //         MaterialPageRoute(
+                //           builder: (_) => AssignPlantPage(userId: widget.userId),
+
+                //         ),
+                //       );
+                //     },
+                //     icon: const Icon(Icons.local_florist),
+                //     label: const Text("Assign Plant to Pot"),
+                //     style: ElevatedButton.styleFrom(
+                //       backgroundColor: Colors.green,
+                //       foregroundColor: Colors.white,
+                //     ),
+                //   ),
+                // ),
+                Expanded(
+                  child: plantList.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No Plant Found',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: plantList.length,
+                          itemBuilder: (context, index) {
+                            final plant = plantList[index];
+                            return Dismissible(
+                              key: Key(plant.id),
+                              direction: DismissDirection.endToStart,
+                              onDismissed: (_) => deletePlant(plant.id),
+                              background: Container(
+                                color: Colors.red,
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                child: const Icon(Icons.delete,
+                                    color: Colors.white),
+                              ),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.all(8),
+                                leading: Image.memory(
+                                  base64Decode(plant.image.split(',').last),
+                                  height: 80,
+                                  width: 80,
+                                  fit: BoxFit.cover,
+                                ),
+                                title: Text(plant.name),
+                                subtitle: Text(plant.status),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  onPressed: () => deletePlant(plant.id),
+                                ),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => DetailPage(plant: plant),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
                         ),
-                        title: Text(plant.name),
-                        subtitle: Text(plant.status),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => deletePlant(plant.id),
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => DetailPage(plant: plant),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
                 ),
+              ],
+            ),
     );
   }
 }

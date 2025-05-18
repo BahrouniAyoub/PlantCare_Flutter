@@ -9,7 +9,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_onboarding/ui/root_page.dart';
 import 'package:flutter_onboarding/ui/screens/signup_page.dart';
 
-
 class SignIn extends StatefulWidget {
   const SignIn({Key? key}) : super(key: key);
 
@@ -27,7 +26,7 @@ class _SignInState extends State<SignIn> {
 
   // Function to handle login
   Future<void> _login() async {
-    print("🔐 Sign In button clicked"); 
+    print("🔐 Sign In button clicked");
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -37,7 +36,7 @@ class _SignInState extends State<SignIn> {
     final password = _passwordController.text;
 
     // Backend URL for login
-    final url = 'http://10.0.2.2:5000/api/auth/login';
+    final url = 'http://192.168.1.10:5000/api/auth/login';
 
     // Prepare the login request payload
     final body = json.encode({
@@ -57,15 +56,22 @@ class _SignInState extends State<SignIn> {
 
       print('🔁 Backend response: ${response.body}');
 
-
       if (response.statusCode == 200) {
         // Successfully logged in
         final data = json.decode(response.body);
         final token = data['token'];
         final userId = data['userId'];
 
+        print(data['name']);
+
+        final name = data['name'];
+        final email = data['email'];
+
         // Save the token securely
         await _storage.write(key: 'jwt', value: token);
+        await _storage.write(key: 'userId', value: userId);
+        await _storage.write(key: 'userName', value: name);
+        await _storage.write(key: 'userEmail', value: email);
 
         // Navigate to the RootPage with the userId
         Navigator.pushReplacement(
@@ -122,7 +128,6 @@ class _SignInState extends State<SignIn> {
                 obscureText: false,
                 hintText: 'Enter Email',
                 icon: Icons.alternate_email,
-                
               ),
               const SizedBox(
                 height: 10,
@@ -155,7 +160,8 @@ class _SignInState extends State<SignIn> {
                     color: Constants.primaryColor,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
                   child: Center(
                     child: _isLoading
                         ? CircularProgressIndicator(
@@ -206,55 +212,55 @@ class _SignInState extends State<SignIn> {
                 height: 20,
               ),
               // OR Section
-              Row(
-                children: const [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('OR'),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
+              // Row(
+              //   children: const [
+              //     Expanded(child: Divider()),
+              //     Padding(
+              //       padding: EdgeInsets.symmetric(horizontal: 10),
+              //       child: Text('OR'),
+              //     ),
+              //     Expanded(child: Divider()),
+              //   ],
+              // ),
               const SizedBox(
                 height: 20,
               ),
               // Google SignIn Button
-              Container(
-                width: size.width,
-                decoration: BoxDecoration(
-                    border: Border.all(color: Constants.primaryColor),
-                    borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    SizedBox(
-                      height: 30,
-                      child: Image.asset('assets/images/google.png'),
-                    ),
-                    Text(
-                      'Sign In with Google',
-                      style: TextStyle(
-                        color: Constants.blackColor,
-                        fontSize: 18.0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Container(
+              //   width: size.width,
+              //   decoration: BoxDecoration(
+              //       border: Border.all(color: Constants.primaryColor),
+              //       borderRadius: BorderRadius.circular(10)),
+              //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+              //   child: Row(
+              //     mainAxisAlignment: MainAxisAlignment.spaceAround,
+              //     children: [
+              //       SizedBox(
+              //         height: 30,
+              //         child: Image.asset('assets/images/google.png'),
+              //       ),
+              //       Text(
+              //         'Sign In with Google',
+              //         style: TextStyle(
+              //           color: Constants.blackColor,
+              //           fontSize: 18.0,
+              //         ),
+              //       ),
+              //     ],
+              //   ),
+              // ),
               const SizedBox(
                 height: 20,
               ),
               // Register Link
               GestureDetector(
-                 onTap: () {
-                   Navigator.pushReplacement(
-                       context,
-                       PageTransition(
-                           child: const SignUp(),
-                           type: PageTransitionType.bottomToTop));
-                 },
+                onTap: () {
+                  Navigator.pushReplacement(
+                      context,
+                      PageTransition(
+                          child: const SignUp(),
+                          type: PageTransitionType.bottomToTop));
+                },
                 child: Center(
                   child: Text.rich(
                     TextSpan(children: [

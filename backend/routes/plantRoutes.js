@@ -17,4 +17,8 @@ router.put('/:id', plantController.updatePlant);
 // Route to delete a plant by its ID
 router.delete('/:id', plantController.deletePlant);
 
+// Assign a plant to a pot
+router.post('/assign', plantController.assignPlantToPot);
+
+
 module.exports = router;

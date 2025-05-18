@@ -49,6 +49,8 @@ const login = async (req, res) => {
 
     res.json({
       userId: user._id,
+      name: user.name,
+      email: user.email,
       accessToken,
       refreshToken,
     });
@@ -71,8 +73,28 @@ const getProfile = async (req, res) => {
   }
 };
 
+
+
+const getUserById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await User.findById(id).select('-password -refreshToken');
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found' });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: 'Server error' });
+  }
+};
+
 module.exports = {
   login,
   signup,
   getProfile,
-}
+  getUserById, // 👈 export this new function
+};
+
+

@@ -24,7 +24,7 @@ class _ScanPageState extends State<ScanPage> {
       'VTSXEXvv5uzUkTJULkgDFNmzDNJ5q2rlWJVzyXbMDa2FwaT0w7';
 
   String get _databaseUrl {
-    return 'http://10.0.2.2:5000/plants'; // Replace X.X with your PC IP address
+    return 'http://192.168.1.10:5000/plants'; // Replace X.X with your PC IP address
   }
 
   Future<void> _openCamera() async {

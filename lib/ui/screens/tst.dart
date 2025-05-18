@@ -89,7 +89,7 @@
 //   Future<void> _loadSensorHistory() async {
 //     try {
 //       final response = await http.get(
-//           Uri.parse('http://10.0.2.2:5000/api/history/${widget.plant.id}'));
+//           Uri.parse('http://192.168.1.10:5000/api/history/${widget.plant.id}'));
 //       if (response.statusCode == 200) {
 //         final List data = jsonDecode(response.body);
 //         final tempData = <Map<String, dynamic>>[];

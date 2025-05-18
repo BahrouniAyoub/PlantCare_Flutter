@@ -42,7 +42,7 @@ class _SignUpState extends State<SignUp> {
     // Simulated signup logic
     try {
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/auth/signup'),
+        Uri.parse('http://192.168.1.10:5000/api/auth/signup'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -154,30 +154,30 @@ class _SignUpState extends State<SignUp> {
               ),
               const SizedBox(height: 20),
 
-              Container(
-                width: size.width,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Constants.primaryColor),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    SizedBox(
-                      height: 30,
-                      child: Image.asset('assets/images/google.png'),
-                    ),
-                    Text(
-                      'Sign Up with Google',
-                      style: TextStyle(
-                        color: Constants.blackColor,
-                        fontSize: 18.0,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Container(
+              //   width: size.width,
+              //   decoration: BoxDecoration(
+              //     border: Border.all(color: Constants.primaryColor),
+              //     borderRadius: BorderRadius.circular(10),
+              //   ),
+              //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
+              //   child: Row(
+              //     mainAxisAlignment: MainAxisAlignment.spaceAround,
+              //     children: [
+              //       SizedBox(
+              //         height: 30,
+              //         child: Image.asset('assets/images/google.png'),
+              //       ),
+              //       Text(
+              //         'Sign Up with Google',
+              //         style: TextStyle(
+              //           color: Constants.blackColor,
+              //           fontSize: 18.0,
+              //         ),
+              //       ),
+              //     ],
+              //   ),
+              // ),
 
               const SizedBox(height: 20),
               GestureDetector(

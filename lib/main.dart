@@ -5,6 +5,8 @@ import 'ui/onboarding_screen.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_onboarding/ui/screens/assign_plant_page.dart';
+
 // import 'ui/screens/signin_page.dart';
 
 final FlutterLocalNotificationsPlugin notificationsPlugin = FlutterLocalNotificationsPlugin();
@@ -43,6 +45,7 @@ class MyApp extends StatelessWidget {
         '/': (context) => const SignIn(),
         '/signin_page': (context) => const SignIn(),
         '/chat': (context) => const ChatWithLLMScreen(),
+
       },
     );
   }

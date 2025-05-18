@@ -6,13 +6,16 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const authRoutes = require('./routes/authRoutes.js');
 const plantRoutes = require('./routes/plantRoutes.js');
-const sensorRoutes = require('./routes/sensorRoutes.js');
+const sensorRoutes = require('./routes/SensorRoute.js');
 
 
 connectDB();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 
 app.use('/api/auth', authRoutes);
